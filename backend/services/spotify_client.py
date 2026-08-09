@@ -28,6 +28,10 @@ class SpotifyAuthError(Exception):
     pass
 
 
+class SpotifyLibraryScopeError(SpotifyAuthError):
+    """The linked account predates the user-library-read permission."""
+
+
 class SpotifyClient:
     def __init__(
         self,
@@ -39,6 +43,8 @@ class SpotifyClient:
         user_id: str,
         connections_store: UserConnectionsStore,
         spotify_user_id: str = "",
+        username: str = "",
+        scope: str = "",
     ) -> None:
         self._client_id = client_id
         self._client_secret = client_secret
@@ -48,6 +54,12 @@ class SpotifyClient:
         self._user_id = user_id
         self._connections_store = connections_store
         self.spotify_user_id = spotify_user_id
+        self.username = username
+        self.scope = scope
+
+    @property
+    def has_library_scope(self) -> bool:
+        return "user-library-read" in self.scope.split()
 
     def _basic_auth_header(self) -> str:
         credentials = f"{self._client_id}:{self._client_secret}"
@@ -90,6 +102,9 @@ class SpotifyClient:
                 "access_token": self._access_token,
                 "refresh_token": self._refresh_token,
                 "expires_at": self._expires_at,
+                "username": self.username,
+                "spotify_user_id": self.spotify_user_id,
+                "scope": self.scope,
             },
         )
 
@@ -174,3 +189,44 @@ class SpotifyClient:
                 break
             params["offset"] += 100
         return tracks
+
+    async def get_saved_tracks(self, stop_at_ids: set[str] | None = None) -> list[dict]:
+        """Return the current user's liked tracks, newest first.
+
+        The existing per-user OAuth connection is reused. Accounts linked before
+        liked-track sync was introduced must reconnect once to grant
+        ``user-library-read``.
+        """
+        if not self.has_library_scope:
+            raise SpotifyLibraryScopeError("Spotify account must be reconnected")
+
+        saved: list[dict] = []
+        offset = 0
+        limit = 50
+        reached_known_track = False
+        while True:
+            try:
+                page = await self._get(
+                    "/me/tracks", params={"limit": limit, "offset": offset}
+                )
+            except httpx.HTTPStatusError as exc:
+                if exc.response.status_code == 403:
+                    raise SpotifyLibraryScopeError(
+                        "Spotify account must be reconnected"
+                    ) from exc
+                raise
+            items = page.get("items") or []
+            for item in items:
+                track = item.get("track") or item.get("item")
+                if not track or not track.get("id") or track.get("is_local"):
+                    continue
+                if track.get("type", "track") != "track":
+                    continue
+                if stop_at_ids and track["id"] in stop_at_ids:
+                    reached_known_track = True
+                    break
+                saved.append({"added_at": item.get("added_at") or "", "track": track})
+            if reached_known_track or not items or not page.get("next"):
+                break
+            offset += limit
+        return saved

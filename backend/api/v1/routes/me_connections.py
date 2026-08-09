@@ -82,7 +82,10 @@ logger = logging.getLogger(__name__)
 router = APIRouter(route_class=MsgSpecRoute, prefix="/me", tags=["me"])
 
 _SUPPORTED_SERVICES = ("lastfm", "listenbrainz", "spotify", "navidrome", "jellyfin", "plex")
-_SPOTIFY_SCOPES = "playlist-read-private playlist-read-collaborative user-read-private"
+_SPOTIFY_SCOPES = (
+    "playlist-read-private playlist-read-collaborative "
+    "user-read-private user-library-read"
+)
 
 
 @router.get("/connections", response_model=ConnectionsResponse)
@@ -374,6 +377,7 @@ async def spotify_auth_callback(
         "expires_at": expires_at,
         "username": spotify_user.get("display_name") or spotify_user.get("id") or "Spotify",
         "spotify_user_id": spotify_user.get("id", ""),
+        "scope": token_data.get("scope", _SPOTIFY_SCOPES),
     })
     return fastapi_responses.RedirectResponse("/profile?spotify=connected")
 

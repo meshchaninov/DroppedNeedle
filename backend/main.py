@@ -24,6 +24,7 @@ from core.tasks import (
     start_poll_new_releases_task,
     start_discover_home_warmer_task,
     start_personal_mix_refresh_task,
+    start_spotify_likes_sync_task,
 )
 from core.task_registry import TaskRegistry
 from core.config import get_settings
@@ -665,6 +666,10 @@ async def lifespan(app: FastAPI):
     from core.dependencies import get_personal_mix_service
 
     start_personal_mix_refresh_task(get_personal_mix_service())
+
+    from core.dependencies import get_spotify_likes_sync_service
+
+    start_spotify_likes_sync_task(get_spotify_likes_sync_service)
 
     from core.tasks import start_orphan_cover_demotion_task, start_store_prune_task
     from core.dependencies import (
