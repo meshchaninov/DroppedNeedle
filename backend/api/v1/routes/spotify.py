@@ -14,12 +14,14 @@ from core.dependencies import (
     get_plex_library_service,
     get_playlist_service,
     get_spotify_import_service,
+    get_spotify_likes_sync_service,
     get_sse_publisher,
 )
 from core.task_registry import TaskRegistry
 from infrastructure.msgspec_fastapi import AppStruct, MsgSpecBody, MsgSpecRoute
 from middleware import CurrentUserDep
 from services.spotify_import_service import SpotifyImportService, SpotifyNotLinkedError
+from services.spotify_likes_sync_service import SpotifyLikesSyncService
 from services.local_files_service import LocalFilesService
 from services.playlist_service import PlaylistService
 
@@ -50,6 +52,84 @@ class SpotifyImportRequest(AppStruct):
 
 class SpotifyImportResponse(AppStruct):
     playlist_id: str
+
+
+class SpotifyLikesSettingsUpdate(AppStruct):
+    enabled: bool
+    include_existing: bool = False
+
+
+class SpotifyLikesStatus(AppStruct):
+    enabled: bool = False
+    include_existing: bool = False
+    initialized: bool = False
+    requires_reconnect: bool = False
+    last_sync_at: str | None = None
+    last_error: str | None = None
+    pending: int = 0
+    requested: int = 0
+    already_in_library: int = 0
+    unmatched: int = 0
+    failed: int = 0
+    ignored: int = 0
+
+
+class SpotifyLikesSyncResponse(AppStruct):
+    status: str = "started"
+
+
+def _likes_status(data: dict) -> SpotifyLikesStatus:
+    return SpotifyLikesStatus(**data)
+
+
+@router.get("/liked-sync", response_model=SpotifyLikesStatus)
+async def get_liked_sync_status(
+    current_user: CurrentUserDep,
+    service: SpotifyLikesSyncService = Depends(get_spotify_likes_sync_service),
+) -> SpotifyLikesStatus:
+    return _likes_status(await service.status(current_user.id))
+
+
+@router.put("/liked-sync", response_model=SpotifyLikesStatus)
+async def update_liked_sync(
+    body: SpotifyLikesSettingsUpdate = MsgSpecBody(SpotifyLikesSettingsUpdate),
+    current_user: CurrentUserDep = None,
+    service: SpotifyLikesSyncService = Depends(get_spotify_likes_sync_service),
+) -> SpotifyLikesStatus:
+    await service.update_settings(
+        current_user.id,
+        enabled=body.enabled,
+        include_existing=body.include_existing,
+    )
+    if body.enabled:
+        task_key = f"spotify:liked-sync:{current_user.id}"
+        registry = TaskRegistry.get_instance()
+        if not registry.is_running(task_key):
+            try:
+                registry.register(
+                    task_key, asyncio.create_task(service.sync_user(current_user.id))
+                )
+            except RuntimeError:
+                pass
+    return _likes_status(await service.status(current_user.id))
+
+
+@router.post("/liked-sync/run", response_model=SpotifyLikesSyncResponse)
+async def run_liked_sync(
+    current_user: CurrentUserDep,
+    service: SpotifyLikesSyncService = Depends(get_spotify_likes_sync_service),
+) -> SpotifyLikesSyncResponse:
+    task_key = f"spotify:liked-sync:{current_user.id}"
+    registry = TaskRegistry.get_instance()
+    if registry.is_running(task_key):
+        return SpotifyLikesSyncResponse(status="already_running")
+    try:
+        registry.register(
+            task_key, asyncio.create_task(service.sync_user(current_user.id, force=True))
+        )
+    except RuntimeError:
+        return SpotifyLikesSyncResponse(status="already_running")
+    return SpotifyLikesSyncResponse()
 
 
 async def _background_import(

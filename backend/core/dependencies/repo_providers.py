@@ -432,6 +432,17 @@ def get_user_listening_prefs_store() -> "UserListeningPrefsStore":
 
 
 @singleton
+def get_spotify_likes_store() -> "SpotifyLikesStore":
+    from infrastructure.persistence.spotify_likes_store import SpotifyLikesStore
+    from .cache_providers import get_persistence_write_lock
+
+    settings = get_settings()
+    return SpotifyLikesStore(
+        db_path=settings.library_db_path, write_lock=get_persistence_write_lock()
+    )
+
+
+@singleton
 def get_discovery_batch_store() -> "DiscoveryBatchStore":
     from infrastructure.persistence.discovery_batch_store import DiscoveryBatchStore
     from .cache_providers import get_persistence_write_lock

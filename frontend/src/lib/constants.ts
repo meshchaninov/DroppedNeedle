@@ -461,6 +461,8 @@ export const API = {
 		spotifyAuthUrl: () => '/api/v1/me/connections/spotify/auth/url',
 		spotifyPlaylists: () => '/api/v1/me/spotify/playlists',
 		spotifyImport: (playlistId: string) => `/api/v1/me/spotify/playlists/${playlistId}/import`,
+		spotifyLikedSync: () => '/api/v1/me/spotify/liked-sync',
+		spotifyLikedSyncRun: () => '/api/v1/me/spotify/liked-sync/run',
 		personalMixRefresh: () => '/api/v1/me/personal-mix/refresh'
 	},
 	scrobble: {

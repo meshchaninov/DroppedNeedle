@@ -1144,6 +1144,21 @@ export type SpotifySettings = {
 	enabled: boolean;
 };
 
+export type SpotifyLikedSyncStatus = {
+	enabled: boolean;
+	include_existing: boolean;
+	initialized: boolean;
+	requires_reconnect: boolean;
+	last_sync_at: string | null;
+	last_error: string | null;
+	pending: number;
+	requested: number;
+	already_in_library: number;
+	unmatched: number;
+	failed: number;
+	ignored: number;
+};
+
 // mirrors backend api/v1/schemas/settings.py (FreeMusicSettings)
 export type FreeMusicSettings = {
 	enabled: boolean;

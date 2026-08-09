@@ -177,6 +177,8 @@ class PerUserClientFactory:
             user_id=user_id,
             connections_store=self._connections_store,
             spotify_user_id=data.get("spotify_user_id", ""),
+            username=data.get("username", ""),
+            scope=data.get("scope", ""),
         )
 
     async def is_spotify_linked(self, user_id: str) -> bool:
