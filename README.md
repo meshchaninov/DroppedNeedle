@@ -512,6 +512,8 @@ Import playlists from Spotify. Track metadata and album art are pulled on import
 
 Optionally turn on **Automatically request liked tracks** from Profile > Spotify. DroppedNeedle reuses the linked Spotify account, matches new likes to MusicBrainz recordings, and sends them through the same native track-request pipeline as the album page. Existing links must reconnect once to grant the additional `user-library-read` permission. By default the first sync establishes a baseline; choose **Also request tracks already liked before the first sync** before enabling to backfill the existing library.
 
+Yandex Music users can connect an account from Profile > Yandex Music with an OAuth token and enable the same automatic liked-track request flow. The integration uses the maintained [`yandex-music`](https://github.com/MarshalX/yandex-music-api) async client; the token is verified before it is stored in DroppedNeedle's encrypted per-user connection store. The first sync establishes a baseline unless the existing-likes backfill option is selected.
+
 Playlists are private to you by default. Toggle one to public and it appears read-only for every other signed-in user under "Shared with you", with your name attached; switch it back to private whenever you like. Admins can see that a private playlist exists, along with its track count and owner, but not its name or its tracks.
 
 ### Profile
@@ -551,6 +553,7 @@ The full API reference is in [PLUGINS.md](PLUGINS.md).
 | YouTube | Album playback when no local copy exists |
 | Local files | Direct playback from a mounted music directory |
 | [Spotify](https://www.spotify.com/) | Playlist import with live sync |
+| [Yandex Music](https://music.yandex.com/) | Automatic liked-track requests |
 | [Ticketmaster](https://www.ticketmaster.com/) | Upcoming concert discovery |
 | [Skiddle](https://www.skiddle.com/) | Upcoming concert discovery |
 | [Deezer](https://www.deezer.com/) | Short audio previews on the discover page |

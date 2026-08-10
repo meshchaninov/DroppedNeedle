@@ -443,6 +443,19 @@ def get_spotify_likes_store() -> "SpotifyLikesStore":
 
 
 @singleton
+def get_yandex_music_likes_store() -> "YandexMusicLikesStore":
+    from infrastructure.persistence.yandex_music_likes_store import (
+        YandexMusicLikesStore,
+    )
+    from .cache_providers import get_persistence_write_lock
+
+    settings = get_settings()
+    return YandexMusicLikesStore(
+        db_path=settings.library_db_path, write_lock=get_persistence_write_lock()
+    )
+
+
+@singleton
 def get_discovery_batch_store() -> "DiscoveryBatchStore":
     from infrastructure.persistence.discovery_batch_store import DiscoveryBatchStore
     from .cache_providers import get_persistence_write_lock

@@ -43,6 +43,7 @@ vi.mock('$lib/components/profile/MediaServerAccountsCard.svelte', emptyComponent
 vi.mock('$lib/components/profile/NavidromeMusicFoldersCard.svelte', emptyComponent);
 vi.mock('$lib/components/profile/ScrobblingDiscoveryCard.svelte', emptyComponent);
 vi.mock('$lib/components/profile/SpotifyConnectionCard.svelte', emptyComponent);
+vi.mock('$lib/components/profile/YandexMusicConnectionCard.svelte', emptyComponent);
 
 vi.mock('$lib/queries/connect-apps/ConnectAppsQueries.svelte', () => ({
 	getConnectAppsSettingsQuery: () => ({
@@ -105,6 +106,9 @@ describe('profile route page', () => {
 			.toBeInTheDocument();
 		await expect.element(navigation.getByRole('link', { name: 'Scrobbling' })).toBeInTheDocument();
 		await expect.element(navigation.getByRole('link', { name: 'Spotify' })).toBeInTheDocument();
+		await expect
+			.element(navigation.getByRole('link', { name: 'Yandex Music' }))
+			.toBeInTheDocument();
 	});
 
 	it('scrolls to the #connect-apps anchor on a cold deep-link once profile has rendered', async () => {

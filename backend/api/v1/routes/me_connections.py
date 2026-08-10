@@ -28,6 +28,7 @@ from api.v1.schemas.me_connections import (
     ScrobblePreferences,
     ScrobblePreferencesUpdate,
     SpotifyAuthUrlResponse,
+    YandexMusicConnectRequest,
 )
 from api.v1.schemas.section_prefs import (
     SectionPrefItem,
@@ -81,7 +82,15 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(route_class=MsgSpecRoute, prefix="/me", tags=["me"])
 
-_SUPPORTED_SERVICES = ("lastfm", "listenbrainz", "spotify", "navidrome", "jellyfin", "plex")
+_SUPPORTED_SERVICES = (
+    "lastfm",
+    "listenbrainz",
+    "spotify",
+    "yandex_music",
+    "navidrome",
+    "jellyfin",
+    "plex",
+)
 _SPOTIFY_SCOPES = (
     "playlist-read-private playlist-read-collaborative "
     "user-read-private user-library-read"
@@ -100,7 +109,6 @@ async def list_connections(
             for r in records
         ]
     )
-
 
 @router.get("/scrobble-preferences", response_model=ScrobblePreferences)
 async def get_scrobble_preferences(
@@ -380,6 +388,42 @@ async def spotify_auth_callback(
         "scope": token_data.get("scope", _SPOTIFY_SCOPES),
     })
     return fastapi_responses.RedirectResponse("/profile?spotify=connected")
+
+
+@router.put("/connections/yandex-music", response_model=ConnectionStatus)
+async def connect_yandex_music(
+    current_user: CurrentUserDep,
+    body: YandexMusicConnectRequest = MsgSpecBody(YandexMusicConnectRequest),
+    store: UserConnectionsStore = Depends(get_user_connections_store),
+) -> ConnectionStatus:
+    token = body.token.strip()
+    if not token:
+        raise HTTPException(status_code=400, detail="A Yandex Music token is required")
+
+    from services.yandex_music_client import YandexMusicAuthError, YandexMusicClient
+    from yandex_music.exceptions import YandexMusicError
+
+    client = YandexMusicClient(token)
+    try:
+        account = await client.get_account()
+    except YandexMusicAuthError:
+        raise HTTPException(status_code=400, detail="The Yandex Music token is invalid or expired")
+    except YandexMusicError as exc:
+        logger.warning("Yandex Music account verification failed: %s", type(exc).__name__)
+        raise HTTPException(status_code=502, detail="Couldn't reach Yandex Music to verify the token")
+
+    await store.upsert(
+        current_user.id,
+        "yandex_music",
+        {
+            "token": token,
+            "yandex_user_id": account["uid"],
+            "username": account["username"],
+        },
+    )
+    return ConnectionStatus(
+        service="yandex_music", enabled=True, username=account["username"]
+    )
 
 
 @router.put("/connections/navidrome", response_model=ConnectionStatus)

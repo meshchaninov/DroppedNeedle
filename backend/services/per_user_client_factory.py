@@ -39,6 +39,7 @@ if TYPE_CHECKING:
 _LISTENBRAINZ = "listenbrainz"
 _LASTFM = "lastfm"
 _SPOTIFY = "spotify"
+_YANDEX_MUSIC = "yandex_music"
 _NAVIDROME = "navidrome"
 _JELLYFIN = "jellyfin"
 _PLEX = "plex"
@@ -192,6 +193,23 @@ class PerUserClientFactory:
             and settings.client_secret
             and (data.get("access_token") or data.get("refresh_token"))
         )
+
+    async def resolve_yandex_music(self, user_id: str) -> "YandexMusicClient | None":
+        data = await self._connections_store.get(user_id, _YANDEX_MUSIC)
+        if not data or not data.get("token"):
+            return None
+
+        from services.yandex_music_client import YandexMusicClient
+
+        return YandexMusicClient(
+            data["token"],
+            user_id=data.get("yandex_user_id", ""),
+            username=data.get("username", ""),
+        )
+
+    async def is_yandex_music_linked(self, user_id: str) -> bool:
+        data = await self._connections_store.get(user_id, _YANDEX_MUSIC)
+        return bool(data and data.get("token"))
 
     def _media_http_client(self):
         timeout, connect_timeout, max_connections = self._http_timeouts()

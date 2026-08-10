@@ -11,5 +11,6 @@ export const CONNECTIONS_ENDPOINTS = {
 	jellyfin: API.me.jellyfin(),
 	plexAuthPin: API.me.plexAuthPin(),
 	plexAuthPoll: (pinId: number) => API.me.plexAuthPoll(pinId),
-	spotifyAuthUrl: API.me.spotifyAuthUrl()
+	spotifyAuthUrl: API.me.spotifyAuthUrl(),
+	yandexMusic: API.me.yandexMusic()
 } as const;

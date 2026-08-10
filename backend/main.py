@@ -25,6 +25,7 @@ from core.tasks import (
     start_discover_home_warmer_task,
     start_personal_mix_refresh_task,
     start_spotify_likes_sync_task,
+    start_yandex_music_likes_sync_task,
 )
 from core.task_registry import TaskRegistry
 from core.config import get_settings
@@ -101,6 +102,7 @@ from api.v1.routes import scrobble as scrobble_routes
 from api.v1.routes import me_connections as me_connections_routes
 from api.v1.routes import system as system_routes
 from api.v1.routes import spotify as spotify_routes
+from api.v1.routes import yandex_music as yandex_music_routes
 from api.v1.routes import now_playing as now_playing_routes
 from api.v1.routes import plex_library as plex_library_routes
 from api.v1.routes import plex_auth as plex_auth_routes
@@ -667,9 +669,13 @@ async def lifespan(app: FastAPI):
 
     start_personal_mix_refresh_task(get_personal_mix_service())
 
-    from core.dependencies import get_spotify_likes_sync_service
+    from core.dependencies import (
+        get_spotify_likes_sync_service,
+        get_yandex_music_likes_sync_service,
+    )
 
     start_spotify_likes_sync_task(get_spotify_likes_sync_service)
+    start_yandex_music_likes_sync_task(get_yandex_music_likes_sync_service)
 
     from core.tasks import start_orphan_cover_demotion_task, start_store_prune_task
     from core.dependencies import (
@@ -861,6 +867,7 @@ v1_router.include_router(scrobble_routes.router)
 v1_router.include_router(me_connections_routes.router)
 v1_router.include_router(system_routes.router)
 v1_router.include_router(spotify_routes.router)
+v1_router.include_router(yandex_music_routes.router)
 v1_router.include_router(now_playing_routes.router)
 v1_router.include_router(profile.router)
 v1_router.include_router(playlists.router)
