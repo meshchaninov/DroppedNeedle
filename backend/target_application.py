@@ -68,6 +68,7 @@ from api.v1.routes import (
     search,
     settings,
     spotify,
+    yandex_music,
     status,
     stream,
     system,
@@ -193,6 +194,7 @@ from core.tasks import (
     start_disk_cache_cleanup_task,
     start_memory_maintenance_task,
     start_spotify_likes_sync_task,
+    start_yandex_music_likes_sync_task,
 )
 from infrastructure.msgspec_fastapi import MsgSpecJSONResponse
 from middleware import (
@@ -412,6 +414,7 @@ def _include_complete_target_routes(app: FastAPI) -> None:
         me_connections.router,
         system.router,
         spotify.router,
+        yandex_music.router,
         now_playing.router,
         profile.router,
         playlists.router,
@@ -568,9 +571,13 @@ async def production_target_lifespan(app: FastAPI):
             interval=advanced.disk_cache_cleanup_interval,
             cover_disk_cache=get_target_consumer_composition().covers.disk_cache,
         )
-        from core.dependencies import get_spotify_likes_sync_service
+        from core.dependencies import (
+            get_spotify_likes_sync_service,
+            get_yandex_music_likes_sync_service,
+        )
 
         start_spotify_likes_sync_task(get_spotify_likes_sync_service)
+        start_yandex_music_likes_sync_task(get_yandex_music_likes_sync_service)
 
         def root_paths() -> dict[str, Path]:
             return {

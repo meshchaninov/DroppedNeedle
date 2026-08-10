@@ -463,6 +463,9 @@ export const API = {
 		spotifyImport: (playlistId: string) => `/api/v1/me/spotify/playlists/${playlistId}/import`,
 		spotifyLikedSync: () => '/api/v1/me/spotify/liked-sync',
 		spotifyLikedSyncRun: () => '/api/v1/me/spotify/liked-sync/run',
+		yandexMusic: () => '/api/v1/me/connections/yandex-music',
+		yandexMusicLikedSync: () => '/api/v1/me/yandex-music/liked-sync',
+		yandexMusicLikedSyncRun: () => '/api/v1/me/yandex-music/liked-sync/run',
 		personalMixRefresh: () => '/api/v1/me/personal-mix/refresh'
 	},
 	scrobble: {

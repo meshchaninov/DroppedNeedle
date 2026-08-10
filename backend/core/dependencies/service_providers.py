@@ -52,6 +52,7 @@ from .repo_providers import (
     get_user_connections_store,
     get_user_listening_prefs_store,
     get_spotify_likes_store,
+    get_yandex_music_likes_store,
     get_play_history_store,
     get_follow_store,
     get_github_repository,
@@ -1647,6 +1648,21 @@ def get_spotify_likes_sync_service() -> "SpotifyLikesSyncService":
 
     return SpotifyLikesSyncService(
         store=get_spotify_likes_store(),
+        client_factory=get_per_user_client_factory(),
+        musicbrainz=get_musicbrainz_repository(),
+        acquisition=get_acquisition_dispatcher(),
+        quota=get_quota_service(),
+        auth=get_auth_store(),
+    )
+
+
+@singleton
+def get_yandex_music_likes_sync_service() -> "YandexMusicLikesSyncService":
+    from services.yandex_music_likes_sync_service import YandexMusicLikesSyncService
+    from .auth_providers import get_auth_store
+
+    return YandexMusicLikesSyncService(
+        store=get_yandex_music_likes_store(),
         client_factory=get_per_user_client_factory(),
         musicbrainz=get_musicbrainz_repository(),
         acquisition=get_acquisition_dispatcher(),

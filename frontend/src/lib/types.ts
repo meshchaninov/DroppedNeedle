@@ -1159,6 +1159,8 @@ export type SpotifyLikedSyncStatus = {
 	ignored: number;
 };
 
+export type YandexMusicLikedSyncStatus = Omit<SpotifyLikedSyncStatus, 'requires_reconnect'>;
+
 // mirrors backend api/v1/schemas/settings.py (FreeMusicSettings)
 export type FreeMusicSettings = {
 	enabled: boolean;

@@ -56,6 +56,10 @@ class SpotifyAuthUrlResponse(AppStruct):
     auth_url: str
 
 
+class YandexMusicConnectRequest(AppStruct):
+    token: str
+
+
 class MediaServerConnectRequest(AppStruct):
     """Link a Navidrome/Jellyfin account with the user's own credentials.
 

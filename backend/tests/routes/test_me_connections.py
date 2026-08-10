@@ -183,6 +183,27 @@ def test_connect_listenbrainz_invalid_token_400(ctx):
     assert resp.status_code == 400
 
 
+def test_connect_yandex_music_persists_token_without_exposing_it(ctx, monkeypatch):
+    monkeypatch.setattr(
+        "services.yandex_music_client.YandexMusicClient.get_account",
+        AsyncMock(return_value={"uid": "ym-42", "username": "Alice YM"}),
+    )
+
+    resp = ctx.client.put(
+        "/me/connections/yandex-music", json={"token": "ym-secret-token"}
+    )
+
+    assert resp.status_code == 200
+    assert resp.json() == {
+        "service": "yandex_music",
+        "enabled": True,
+        "username": "Alice YM",
+    }
+    listing = ctx.client.get("/me/connections")
+    assert listing.json()["connections"][0]["service"] == "yandex_music"
+    assert "ym-secret-token" not in listing.text
+
+
 def test_scrobble_preferences_default(ctx):
     resp = ctx.client.get("/me/scrobble-preferences")
     assert resp.status_code == 200

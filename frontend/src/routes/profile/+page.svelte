@@ -44,6 +44,7 @@
 	import NavidromeMusicFoldersCard from '$lib/components/profile/NavidromeMusicFoldersCard.svelte';
 	import ScrobblingDiscoveryCard from '$lib/components/profile/ScrobblingDiscoveryCard.svelte';
 	import SpotifyConnectionCard from '$lib/components/profile/SpotifyConnectionCard.svelte';
+	import YandexMusicConnectionCard from '$lib/components/profile/YandexMusicConnectionCard.svelte';
 	import ProfileConnectApps from '$lib/components/profile/ProfileConnectApps.svelte';
 	import PageSectionToc from '$lib/components/PageSectionToc.svelte';
 	import { page } from '$app/state';
@@ -89,6 +90,7 @@
 			{ id: 'connect-apps', label: 'Connect Apps' },
 			{ id: 'scrobbling', label: 'Scrobbling' },
 			{ id: 'spotify', label: 'Spotify' },
+			{ id: 'yandex-music', label: 'Yandex Music' },
 			...(profile.library_stats.length > 0 ? [{ id: 'libraries', label: 'Your Libraries' }] : [])
 		];
 	});
@@ -781,6 +783,10 @@
 
 				<div id="spotify" class="scroll-mt-24 xl:ml-40">
 					<SpotifyConnectionCard />
+				</div>
+
+				<div id="yandex-music" class="scroll-mt-24 xl:ml-40">
+					<YandexMusicConnectionCard />
 				</div>
 
 				{#if profile.library_stats.length > 0}

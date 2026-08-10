@@ -131,6 +131,28 @@ async def test_resolve_lastfm_username(store):
     assert await _factory(store).resolve_lastfm_username("u1") == "lfuser"
 
 
+@pytest.mark.asyncio
+async def test_resolve_yandex_music_threads_encrypted_connection_fields(store):
+    await store.upsert(
+        "u1",
+        "yandex_music",
+        {"token": "ym-token", "yandex_user_id": "42", "username": "Alice YM"},
+    )
+
+    client = await _factory(store).resolve_yandex_music("u1")
+
+    assert client is not None
+    assert client.user_id == "42"
+    assert client.username == "Alice YM"
+    assert await _factory(store).is_yandex_music_linked("u1") is True
+
+
+@pytest.mark.asyncio
+async def test_resolve_yandex_music_none_when_absent(store):
+    assert await _factory(store).resolve_yandex_music("u1") is None
+    assert await _factory(store).is_yandex_music_linked("u1") is False
+
+
 # --- media servers: admin-owned URL + per-user credential (issue #138) ---
 
 

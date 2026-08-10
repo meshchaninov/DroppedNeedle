@@ -67,6 +67,38 @@ def start_spotify_likes_sync_task(
     return task
 
 
+async def yandex_music_likes_sync_periodically(
+    service_provider,
+    interval: int = 300,
+    initial_delay: int = 45,
+) -> None:
+    """Poll liked tracks through each user's Yandex Music connection."""
+    await asyncio.sleep(initial_delay)
+    while True:
+        try:
+            await service_provider().sync_enabled_users()
+        except asyncio.CancelledError:
+            break
+        except Exception as exc:  # noqa: BLE001
+            logger.error("Yandex Music liked-track scheduler failed: %s", exc, exc_info=True)
+        try:
+            await asyncio.sleep(interval)
+        except asyncio.CancelledError:
+            break
+
+
+def start_yandex_music_likes_sync_task(
+    service_provider, interval: int = 300, initial_delay: int = 45
+) -> asyncio.Task:
+    task = asyncio.create_task(
+        yandex_music_likes_sync_periodically(
+            service_provider, interval=interval, initial_delay=initial_delay
+        )
+    )
+    TaskRegistry.get_instance().register("yandex-music-liked-sync", task)
+    return task
+
+
 async def cleanup_cache_periodically(
     cache: CacheInterface, interval: int = 300
 ) -> None:

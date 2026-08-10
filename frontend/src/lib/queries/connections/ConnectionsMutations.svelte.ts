@@ -74,6 +74,13 @@ export const createConnectSpotifyMutation = () =>
 		}
 	}));
 
+export const createConnectYandexMusicMutation = () =>
+	createMutation(() => ({
+		mutationFn: (token: string) =>
+			api.global.put<ConnectionStatusResponse>(CONNECTIONS_ENDPOINTS.yandexMusic, { token }),
+		onSuccess: invalidateConnections
+	}));
+
 // media-server account links (issue #138): credentials are validated live by the
 // backend and never echoed back
 export const createConnectNavidromeMutation = () =>
