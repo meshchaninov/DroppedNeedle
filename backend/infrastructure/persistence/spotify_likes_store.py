@@ -17,6 +17,7 @@ class SpotifyLikesSettings(msgspec.Struct, frozen=True):
     include_existing: bool = False
     initialized: bool = False
     requires_reconnect: bool = False
+    enabled_at: str | None = None
     last_sync_at: str | None = None
     last_error: str | None = None
     updated_at: str = ""
@@ -65,6 +66,7 @@ class SpotifyLikesStore:
                     include_existing INTEGER NOT NULL DEFAULT 0,
                     initialized INTEGER NOT NULL DEFAULT 0,
                     requires_reconnect INTEGER NOT NULL DEFAULT 0,
+                    enabled_at TEXT,
                     last_sync_at TEXT,
                     last_error TEXT,
                     updated_at TEXT NOT NULL
@@ -90,6 +92,21 @@ class SpotifyLikesStore:
                 CREATE INDEX IF NOT EXISTS idx_spotify_liked_tracks_pending
                     ON spotify_liked_tracks(user_id, status, added_at);
                 """)
+            columns = {
+                row["name"]
+                for row in conn.execute("PRAGMA table_info(spotify_likes_settings)")
+            }
+            if "enabled_at" not in columns:
+                conn.execute(
+                    "ALTER TABLE spotify_likes_settings ADD COLUMN enabled_at TEXT"
+                )
+                conn.execute(
+                    """
+                    UPDATE spotify_likes_settings
+                    SET enabled_at = updated_at
+                    WHERE enabled = 1 AND enabled_at IS NULL
+                    """
+                )
             conn.commit()
         finally:
             conn.close()
@@ -126,6 +143,7 @@ class SpotifyLikesStore:
             include_existing=bool(row["include_existing"]),
             initialized=bool(row["initialized"]),
             requires_reconnect=bool(row["requires_reconnect"]),
+            enabled_at=row["enabled_at"],
             last_sync_at=row["last_sync_at"],
             last_error=row["last_error"],
             updated_at=row["updated_at"],
@@ -153,9 +171,16 @@ class SpotifyLikesStore:
     ) -> None:
         current = await self.get_settings(user_id)
         now = datetime.now(timezone.utc).isoformat()
+        next_enabled = current.enabled if enabled is None else enabled
+        if next_enabled and not current.enabled:
+            enabled_at = now
+        elif next_enabled:
+            enabled_at = current.enabled_at
+        else:
+            enabled_at = None
         values = SpotifyLikesSettings(
             user_id=user_id,
-            enabled=current.enabled if enabled is None else enabled,
+            enabled=next_enabled,
             include_existing=(
                 current.include_existing if include_existing is None else include_existing
             ),
@@ -163,6 +188,7 @@ class SpotifyLikesStore:
             requires_reconnect=(
                 current.requires_reconnect if requires_reconnect is None else requires_reconnect
             ),
+            enabled_at=enabled_at,
             last_sync_at=current.last_sync_at if last_sync_at is None else last_sync_at,
             last_error=(
                 None if clear_error else (current.last_error if last_error is None else last_error)
@@ -175,13 +201,14 @@ class SpotifyLikesStore:
                 """
                 INSERT INTO spotify_likes_settings (
                     user_id, enabled, include_existing, initialized,
-                    requires_reconnect, last_sync_at, last_error, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    requires_reconnect, enabled_at, last_sync_at, last_error, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(user_id) DO UPDATE SET
                     enabled = excluded.enabled,
                     include_existing = excluded.include_existing,
                     initialized = excluded.initialized,
                     requires_reconnect = excluded.requires_reconnect,
+                    enabled_at = excluded.enabled_at,
                     last_sync_at = excluded.last_sync_at,
                     last_error = excluded.last_error,
                     updated_at = excluded.updated_at
@@ -192,6 +219,7 @@ class SpotifyLikesStore:
                     int(values.include_existing),
                     int(values.initialized),
                     int(values.requires_reconnect),
+                    values.enabled_at,
                     values.last_sync_at,
                     values.last_error,
                     values.updated_at,

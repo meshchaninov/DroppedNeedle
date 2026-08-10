@@ -14,6 +14,7 @@ def _settings(**updates) -> SpotifyLikesSettings:
         "include_existing": False,
         "initialized": False,
         "requires_reconnect": False,
+        "enabled_at": "2026-08-05T00:00:00+00:00",
         "last_sync_at": None,
         "last_error": None,
         "updated_at": "",
@@ -92,6 +93,34 @@ async def test_first_sync_baselines_existing_likes_when_backfill_is_off():
     store.add_tracks.assert_awaited_once()
     assert store.add_tracks.await_args.args[2] == "ignored"
     service._acquisition.request_track.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_first_sync_queues_likes_added_after_feature_was_enabled():
+    client = AsyncMock()
+    client.has_library_scope = True
+    client.get_saved_tracks = AsyncMock(
+        return_value=[
+            {
+                "added_at": "2026-08-06T00:00:00Z",
+                "track": {
+                    "id": "spotify-new",
+                    "name": "New Song",
+                    "type": "track",
+                    "artists": [{"name": "Artist"}],
+                    "album": {"name": "Album"},
+                    "duration_ms": 180000,
+                    "external_ids": {"isrc": "USABC1234567"},
+                },
+            }
+        ]
+    )
+    service, store = _service(client=client)
+
+    await service.sync_user("user-1")
+
+    store.add_tracks.assert_awaited_once()
+    assert store.add_tracks.await_args.args[2] == "pending"
 
 
 @pytest.mark.asyncio
