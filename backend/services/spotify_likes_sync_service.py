@@ -6,6 +6,7 @@ import asyncio
 import logging
 import re
 import unicodedata
+from datetime import datetime, timezone
 from difflib import SequenceMatcher
 from typing import TYPE_CHECKING, Any
 
@@ -39,6 +40,21 @@ def _normalized(value: str | None) -> str:
 
 def _similarity(left: str | None, right: str | None) -> float:
     return SequenceMatcher(None, _normalized(left), _normalized(right)).ratio()
+
+
+def _liked_after_enabled(added_at: str, enabled_at: str | None) -> bool:
+    if not added_at or not enabled_at:
+        return False
+    try:
+        liked = datetime.fromisoformat(added_at.replace("Z", "+00:00"))
+        enabled = datetime.fromisoformat(enabled_at.replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    if liked.tzinfo is None:
+        liked = liked.replace(tzinfo=timezone.utc)
+    if enabled.tzinfo is None:
+        enabled = enabled.replace(tzinfo=timezone.utc)
+    return liked > enabled
 
 
 class SpotifyLikesSyncService:
@@ -148,10 +164,19 @@ class SpotifyLikesSyncService:
 
         tracks = [self._spotify_track(item) for item in raw_items]
         tracks = [track for track in tracks if track is not None]
-        initial_status = (
-            "pending" if settings.initialized or settings.include_existing else "ignored"
-        )
-        await self._store.add_tracks(user_id, tracks, initial_status)
+        if settings.initialized or settings.include_existing:
+            await self._store.add_tracks(user_id, tracks, "pending")
+        else:
+            newly_liked = [
+                track
+                for track in tracks
+                if _liked_after_enabled(track["added_at"], settings.enabled_at)
+            ]
+            baseline = [track for track in tracks if track not in newly_liked]
+            if baseline:
+                await self._store.add_tracks(user_id, baseline, "ignored")
+            if newly_liked:
+                await self._store.add_tracks(user_id, newly_liked, "pending")
         await self._store.update_settings(
             user_id,
             initialized=True,
@@ -204,8 +229,6 @@ class SpotifyLikesSyncService:
                     status="failed",
                     error=str(exc),
                 )
-
-        from datetime import datetime, timezone
 
         await self._store.update_settings(
             user_id,

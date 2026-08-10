@@ -192,6 +192,7 @@ from core.tasks import (
     start_cache_cleanup_task,
     start_disk_cache_cleanup_task,
     start_memory_maintenance_task,
+    start_spotify_likes_sync_task,
 )
 from infrastructure.msgspec_fastapi import MsgSpecJSONResponse
 from middleware import (
@@ -567,6 +568,9 @@ async def production_target_lifespan(app: FastAPI):
             interval=advanced.disk_cache_cleanup_interval,
             cover_disk_cache=get_target_consumer_composition().covers.disk_cache,
         )
+        from core.dependencies import get_spotify_likes_sync_service
+
+        start_spotify_likes_sync_task(get_spotify_likes_sync_service)
 
         def root_paths() -> dict[str, Path]:
             return {
