@@ -224,9 +224,10 @@ class DownloadStore(PersistenceBase):
                     track_duration_seconds REAL,
                     download_client TEXT NOT NULL DEFAULT 'slskd',
                     source TEXT NOT NULL DEFAULT 'soulseek',
-                    -- Why the task exists ('user' | 'retry' | 'upgrade'); orthogonal to
-                    -- source. Drives the origin-aware album gate, replace-on-import and
-                    -- cap/quota exemptions (CollectionManagement D18/D19).
+                    -- Why the task exists; orthogonal to source. In addition to the
+                    -- public user/retry/upgrade values, the YouTube provisional flow
+                    -- uses two internal origins. Drives origin-aware replacement and
+                    -- cap/quota rules (CollectionManagement D18/D19).
                     origin TEXT NOT NULL DEFAULT 'user',
                     source_username TEXT,
                     source_directory TEXT,
@@ -517,6 +518,56 @@ class DownloadStore(PersistenceBase):
                 (release_group_mbid, *_ACTIVE_STATUSES),
             ).fetchone()
             return _row_to_task(row)
+
+        return await self._read(operation)
+
+    async def get_active_task_for_source_target(
+        self,
+        *,
+        source: str,
+        user_id: str,
+        release_group_mbid: str,
+        recording_mbid: str | None,
+    ) -> DownloadTask | None:
+        """Source-scoped dedup for auxiliary acquisition tasks.
+
+        The normal album/track dedup deliberately sees the concurrently running P2P
+        request, so the provisional YouTube lane needs its own source namespace.
+        """
+
+        def operation(conn: sqlite3.Connection) -> DownloadTask | None:
+            if recording_mbid:
+                row = conn.execute(
+                    f"""SELECT * FROM download_tasks
+                        WHERE source = ? AND user_id = ?
+                          AND lower(recording_mbid) = lower(?)
+                          AND status IN ({_in_placeholders(_ACTIVE_STATUSES)})
+                        ORDER BY created_at DESC LIMIT 1""",
+                    (source, user_id, recording_mbid, *_ACTIVE_STATUSES),
+                ).fetchone()
+            else:
+                row = conn.execute(
+                    f"""SELECT * FROM download_tasks
+                        WHERE source = ? AND user_id = ?
+                          AND lower(release_group_mbid) = lower(?)
+                          AND download_type = 'album'
+                          AND status IN ({_in_placeholders(_ACTIVE_STATUSES)})
+                        ORDER BY created_at DESC LIMIT 1""",
+                    (source, user_id, release_group_mbid, *_ACTIVE_STATUSES),
+                ).fetchone()
+            return _row_to_task(row)
+
+        return await self._read(operation)
+
+    async def list_active_tasks_for_source(self, source: str) -> list[DownloadTask]:
+        def operation(conn: sqlite3.Connection) -> list[DownloadTask]:
+            rows = conn.execute(
+                f"SELECT * FROM download_tasks WHERE source = ? "
+                f"AND status IN ({_in_placeholders(_ACTIVE_STATUSES)}) "
+                "ORDER BY created_at ASC",
+                (source, *_ACTIVE_STATUSES),
+            ).fetchall()
+            return [task for task in (_row_to_task(row) for row in rows) if task]
 
         return await self._read(operation)
 

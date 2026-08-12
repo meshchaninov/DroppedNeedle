@@ -31,6 +31,7 @@ from models.download import (
 )
 from repositories.protocols.download_client import DownloadClientProtocol
 from repositories.protocols.indexer import IndexerProtocol
+from services.native.acquisition_origins import allows_replacement
 from services.native.acquisition.status import DownloadStatus
 from services.native.album_preflight_scorer import (
     AlbumPreflightScorer,
@@ -38,7 +39,7 @@ from services.native.album_preflight_scorer import (
 )
 from services.native.download_orchestrator import DownloadOrchestrator
 from services.native.library_manager import LibraryManager
-from services.native.quality_tiers import should_acquire, tier_for, tier_rank
+from services.native.quality_tiers import held_tier_for_row, should_acquire, tier_rank
 
 if TYPE_CHECKING:
     from models.held_import import HeldImport
@@ -185,13 +186,13 @@ class DownloadService:
         upgrades, so re-fetching for any other origin would download bytes that are then
         skipped at placement. Every non-upgrade origin sees any held copy as satisfied."""
         held = await self._library.album_quality_tier(release_group_mbid)
-        if origin != "upgrade":
+        if not allows_replacement(origin):
             return held is not None
         if held is None:
             # An upgrade of nothing is not an upgrade: an un-held album must go
             # through the normal (quota/cap-checked) request path, never the
             # exempt upgrade path - and with upgrades off nothing may pass either.
-            return True
+            return origin == "upgrade"
         return not should_acquire(held, self._quality_cutoff, self._upgrade_allowed)
 
     async def _ensure_track_count(
@@ -724,13 +725,16 @@ class DownloadService:
             artist_mbid = await self._ownership.optional_provider_artist_id(artist_mbid)
         self._ensure_enabled()
         if recording_mbid:
-            if origin == "upgrade":
+            if allows_replacement(origin):
                 # per-recording floor (D12): a track upgrade must beat the BEST held
                 # copy of that recording, and only while upgrades are on + below cutoff.
                 # An un-held recording is no upgrade target (see _already_satisfied).
                 held = await self._library.recording_quality_tier(recording_mbid)
-                if held is None or not should_acquire(
-                    held, self._quality_cutoff, self._upgrade_allowed
+                if (held is None and origin == "upgrade") or (
+                    held is not None
+                    and not should_acquire(
+                        held, self._quality_cutoff, self._upgrade_allowed
+                    )
                 ):
                     return ALREADY_IN_LIBRARY
             elif await self._library.has_track(recording_mbid):
@@ -917,7 +921,7 @@ class DownloadService:
                 continue
             if not self._upgrade_allowed:
                 continue
-            held_tier = tier_for(row.get("file_format") or "", row.get("bit_rate"))
+            held_tier = held_tier_for_row(row)
             if tier_rank(held_tier) >= tier_rank(self._quality_cutoff):
                 continue
             recording = row.get("recording_mbid") or track.recording_id

@@ -69,6 +69,18 @@ def tier_for(ext: str, bitrate: int | None) -> str:
     return "low"
 
 
+def held_tier_for_row(row: dict) -> str:
+    """Effective held tier including acquisition provenance.
+
+    A YouTube stream transcoded to MP3 320 still contains the lower-quality source
+    signal. Keep it below the MP3-320 upgrade floor so a genuine peer copy can replace
+    it instead of being rejected as merely equal.
+    """
+    if (row.get("source") or row.get("ingest_source")) == "youtube":
+        return "low"
+    return tier_for(row.get("file_format") or "", row.get("bit_rate"))
+
+
 def file_tier(file: DownloadSearchResult) -> str:
     return tier_for(effective_extension(file), file.bitrate)
 

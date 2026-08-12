@@ -15,6 +15,7 @@ NPM    ?= pnpm
 
 .PHONY: \
 	help \
+	doctor setup dev check \
 	backend-venv backend-lint backend-test \
 	test-compat backend-test-compat \
 	backend-test-compat-subsonic backend-test-compat-jellyfin backend-test-compat-streaming \
@@ -142,6 +143,25 @@ NPM    ?= pnpm
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z0-9_.-]+:.*## ' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*## "}; {printf "%-34s %s\n", $$1, $$2}'
+
+doctor: ## Verify local development prerequisites
+	@command -v $(PYTHON) >/dev/null || { echo "Missing Python 3.13+ ($(PYTHON))" >&2; exit 1; }
+	@$(PYTHON) -c 'import sys; assert sys.version_info >= (3, 13), "Python 3.13+ is required"'
+	@command -v $(NPM) >/dev/null || { echo "Missing pnpm 10+" >&2; exit 1; }
+	@$(NPM) --version | awk -F. '($$1 + 0) >= 10 { ok=1 } END { if (!ok) { print "pnpm 10+ is required" > "/dev/stderr"; exit 1 } }'
+	@command -v node >/dev/null || { echo "Missing Node.js 22+" >&2; exit 1; }
+	@node -e 'const major=Number(process.versions.node.split(".")[0]); if (major < 22) throw new Error("Node.js 22+ is required")'
+	@echo "Development prerequisites are available."
+
+setup: doctor backend-venv frontend-install ## Install dependencies and create missing local env files
+	@test -f "$(BACKEND_DIR)/.env" || cp "$(BACKEND_DIR)/env.dev.example" "$(BACKEND_DIR)/.env"
+	@test -f "$(FRONTEND_DIR)/.env.development" || cp "$(FRONTEND_DIR)/env.development.example" "$(FRONTEND_DIR)/.env.development"
+	@echo "Development environment is ready. Run 'make dev'."
+
+dev: ## Run backend and frontend development servers
+	@"$(ROOT_DIR)/scripts/dev.sh"
+
+check: backend-lint frontend-lint frontend-check frontend-format-check frontend-test-server ## Run the fast, non-mutating local quality gate
 
 $(BACKEND_VENV_DIR):
 	cd "$(BACKEND_DIR)" && test -f .virtualenv.pyz || curl -fsSLo .virtualenv.pyz https://bootstrap.pypa.io/virtualenv.pyz
@@ -769,7 +789,7 @@ test-mus14-all: backend-test-dedup-cancellation backend-test-request-service ## 
 test-sync-all: backend-test-sync-watchdog backend-test-sync-resume backend-test-audiodb-parallel backend-test-sync-generation ## Run all sync reliability tests
 
 frontend-install: ## Install frontend npm dependencies
-	cd "$(FRONTEND_DIR)" && $(NPM) install
+	cd "$(FRONTEND_DIR)" && $(NPM) install --frozen-lockfile
 
 frontend-build: ## Run frontend production build
 	cd "$(FRONTEND_DIR)" && $(NPM) run build

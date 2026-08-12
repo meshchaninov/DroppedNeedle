@@ -45,6 +45,8 @@ def _clear_download_client_cache() -> None:
         get_target_download_orchestrator,
         get_target_download_service,
         get_target_file_processor,
+        get_target_youtube_provisional_service,
+        get_youtube_provisional_service,
     )
 
     for provider in (
@@ -58,7 +60,9 @@ def _clear_download_client_cache() -> None:
         get_file_processor,
         get_download_orchestrator,
         get_download_service,
+        get_youtube_provisional_service,
         get_target_file_processor,
+        get_target_youtube_provisional_service,
         get_target_download_orchestrator,
         get_target_download_service,
     ):

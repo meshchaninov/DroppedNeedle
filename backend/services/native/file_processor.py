@@ -28,6 +28,7 @@ from rapidfuzz import fuzz
 from infrastructure.msgspec_fastapi import AppStruct
 from models.audio import AudioInfo, AudioTag
 from models.download_manifest import DownloadManifest, ExpectedFile, ExpectedTrack
+from services.native.acquisition_origins import allows_replacement
 from services.native.quality_tiers import tier_for, tier_rank
 from services.native.recycle_bin import recycle
 from services.native.title_match import names_different_album, title_containment_score
@@ -438,6 +439,8 @@ def _basename(filename: str) -> str:
 
 def _row_tier(row: dict) -> str:
     """A library_files row's quality tier, judged exactly like the scanner/gate."""
+    if (row.get("source") or row.get("ingest_source")) == "youtube":
+        return "low"
     return tier_for(row.get("file_format") or "", row.get("bit_rate"))
 
 
@@ -689,7 +692,7 @@ class FileProcessor:
                 manifest.release_group_mbid, target_tag.disc_number or 1, target_tag.track_number
             )
             occupied_by_other = (
-                manifest.origin != "upgrade"
+                not allows_replacement(manifest.origin)
                 and present is not None
                 and not row_covers_track(
                     present,
@@ -762,7 +765,7 @@ class FileProcessor:
                     tag=tag, info=info, expected_track=track,
                     canonical_duration=track.duration_seconds, fp=fp,
                 ),
-                source="download",
+                source=manifest.acquisition_source,
                 download_task_id=manifest.task_id, source_path=str(source),
             )
         except Exception as exc:  # noqa: BLE001 - import I/O or DB error -> per-file failure
@@ -781,7 +784,7 @@ class FileProcessor:
         """The occupied slot's old file path when this upgrade import may replace it
         (strictly better + a recycle bin to preserve the old bytes), else ``None``
         (the caller keeps the existing file - today's dedup behaviour)."""
-        if origin != "upgrade" or self._recycle_bin is None:
+        if not allows_replacement(origin) or self._recycle_bin is None:
             return None
         if _is_strict_upgrade(_row_tier(present), info):
             return Path(present["file_path"])
@@ -804,7 +807,7 @@ class FileProcessor:
     async def _same_path_upgrade_applies(
         self, origin: str, target_path: Path, info: AudioInfo
     ) -> bool:
-        if origin != "upgrade" or self._recycle_bin is None:
+        if not allows_replacement(origin) or self._recycle_bin is None:
             return False
         existing_tier = await self._existing_tier_at(target_path)
         return existing_tier is not None and _is_strict_upgrade(existing_tier, info)
@@ -959,7 +962,7 @@ class FileProcessor:
             if task is not None:
                 origin = task.origin
         replace_old: Path | None = None
-        if origin == "upgrade" and held.track_number and held.release_group_mbid:
+        if allows_replacement(origin) and held.track_number and held.release_group_mbid:
             present = await self._library.get_file_at_position(
                 held.release_group_mbid, held.disc_number or 1, held.track_number
             )
@@ -991,7 +994,7 @@ class FileProcessor:
             # "import anyway" - that attribution decision outranks every heuristic,
             # and the rescanner must never second-guess it.
             confidence=1.0,
-            source="download",
+            source=held.source or "download",
             download_task_id=held.source_task_id,
             source_path=held.held_path,
         )
@@ -1122,7 +1125,7 @@ class FileProcessor:
                 target_tag.track_number,
             )
             occupied_by_other = (
-                manifest.origin != "upgrade"
+                not allows_replacement(manifest.origin)
                 and expected_track is not None
                 and present is not None
                 and not row_covers_track(
@@ -1307,7 +1310,7 @@ class FileProcessor:
                     canonical_duration=expected.duration if manifest.is_track else None,
                     fp=fp,
                 ),
-                source="download",
+                source=manifest.acquisition_source,
                 download_task_id=manifest.task_id,
                 source_path=str(source),
             )

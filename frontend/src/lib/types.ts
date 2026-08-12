@@ -2168,6 +2168,8 @@ export interface DownloadPolicySettings {
 	background_upgrade_scan_enabled: boolean;
 	background_upgrade_scan_interval_hours: number;
 	background_upgrade_max_per_run: number;
+	youtube_provisional_enabled: boolean;
+	youtube_max_concurrent_downloads: number;
 }
 
 // Hand-mirrors backend WantedWatcherSettings (api/v1/schemas/settings.py).

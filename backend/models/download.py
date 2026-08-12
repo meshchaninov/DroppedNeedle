@@ -118,13 +118,13 @@ class DownloadTask(AppStruct):
     track_count: int | None = None
     track_duration_seconds: float | None = None
     download_client: str = "slskd"
-    # Acquisition source ("soulseek" | "usenet"); the fixed v1 map is
-    # soulseek→slskd, usenet→sabnzbd. Drives the "via album NZB" UI label and
-    # source-scoped failover. Defaulted so old rows decode as soulseek.
+    # Acquisition source ("soulseek" | "usenet" | "youtube"). YouTube is an
+    # auxiliary provisional lane; the two regular sources drive scoped failover.
+    # Defaulted so old rows decode as soulseek.
     source: str = "soulseek"
-    # Why the task exists: "user" (a request), "retry" (re-dispatch of a failed task)
-    # or "upgrade" (a curator-triggered quality upgrade). Orthogonal to ``source``;
-    # defaulted so old rows decode as user requests.
+    # Why the task exists: user/retry/upgrade, plus the internal youtube_provisional
+    # and youtube_upgrade origins used by the temporary-copy flow. Orthogonal to
+    # ``source``; defaulted so old rows decode as user requests.
     origin: str = "user"
     source_username: str | None = None
     source_directory: str | None = None

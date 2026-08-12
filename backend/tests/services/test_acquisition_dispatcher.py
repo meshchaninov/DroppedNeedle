@@ -11,7 +11,10 @@ from services.acquisition_dispatcher import AcquisitionDispatcher
 from core.exceptions import ProviderIdentityRequiredError
 
 
-def _dispatcher(*, builtin_ready: bool, free_music_ready: bool = True):
+def _dispatcher(
+    *, builtin_ready: bool, free_music_ready: bool = True,
+    youtube_enabled: bool = False,
+):
     download = MagicMock()
     download.request_album = AsyncMock(return_value="slskd-album")
     download.request_track = AsyncMock(return_value="slskd-track")
@@ -19,19 +22,28 @@ def _dispatcher(*, builtin_ready: bool, free_music_ready: bool = True):
     free_music.is_ready = MagicMock(return_value=free_music_ready)
     free_music.request_album = AsyncMock(return_value="free-album")
     free_music.request_track = AsyncMock(return_value="free-track")
-    prefs = SimpleNamespace(is_builtin_download_ready=lambda: builtin_ready)
+    prefs = SimpleNamespace(
+        is_builtin_download_ready=lambda: builtin_ready,
+        get_download_policy=lambda: SimpleNamespace(
+            youtube_provisional_enabled=youtube_enabled
+        ),
+    )
+    youtube = MagicMock()
+    youtube.dispatch_album = AsyncMock(return_value="youtube-album")
+    youtube.dispatch_track = AsyncMock(return_value="youtube-track")
 
     dispatcher = AcquisitionDispatcher(
         get_download_service=lambda: download,
         get_free_music_service=lambda: free_music,
         preferences_service=prefs,
+        get_youtube_provisional_service=(lambda: youtube) if youtube_enabled else None,
     )
-    return dispatcher, download, free_music
+    return dispatcher, download, free_music, youtube
 
 
 @pytest.mark.asyncio
 async def test_album_goes_to_free_music_when_no_client_is_configured():
-    dispatcher, download, free_music = _dispatcher(builtin_ready=False)
+    dispatcher, download, free_music, _youtube = _dispatcher(builtin_ready=False)
 
     task_id = await dispatcher.request_album(
         user_id="u1",
@@ -56,7 +68,7 @@ async def test_album_goes_to_free_music_when_no_client_is_configured():
 
 @pytest.mark.asyncio
 async def test_album_goes_to_the_client_when_one_is_configured():
-    dispatcher, download, free_music = _dispatcher(builtin_ready=True)
+    dispatcher, download, free_music, _youtube = _dispatcher(builtin_ready=True)
 
     task_id = await dispatcher.request_album(
         user_id="u1",
@@ -73,7 +85,7 @@ async def test_album_goes_to_the_client_when_one_is_configured():
 
 @pytest.mark.asyncio
 async def test_track_routes_the_same_way():
-    dispatcher, download, free_music = _dispatcher(builtin_ready=False)
+    dispatcher, download, free_music, _youtube = _dispatcher(builtin_ready=False)
 
     task_id = await dispatcher.request_track(
         user_id="u1",
@@ -92,7 +104,7 @@ async def test_track_routes_the_same_way():
 
 @pytest.mark.asyncio
 async def test_falls_back_to_the_client_when_free_music_is_disabled():
-    dispatcher, download, free_music = _dispatcher(
+    dispatcher, download, free_music, _youtube = _dispatcher(
         builtin_ready=False, free_music_ready=False
     )
 
@@ -106,7 +118,7 @@ async def test_falls_back_to_the_client_when_free_music_is_disabled():
 
 @pytest.mark.asyncio
 async def test_target_projection_rejects_local_only_track_before_free_music() -> None:
-    dispatcher, download, free_music = _dispatcher(builtin_ready=False)
+    dispatcher, download, free_music, _youtube = _dispatcher(builtin_ready=False)
     ownership = AsyncMock()
     ownership.provider_track_id.side_effect = ProviderIdentityRequiredError(
         "This track only has local metadata."
@@ -123,3 +135,23 @@ async def test_target_projection_rejects_local_only_track_before_free_music() ->
 
     download.request_track.assert_not_awaited()
     free_music.request_track.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_youtube_provisional_runs_immediately_beside_upgrade_capable_client_task():
+    dispatcher, download, free_music, youtube = _dispatcher(
+        builtin_ready=True, youtube_enabled=True
+    )
+
+    task_id = await dispatcher.request_album(
+        user_id="u1",
+        release_group_mbid="rg",
+        artist_name="A",
+        album_title="B",
+        origin="user",
+    )
+
+    assert task_id == "slskd-album"
+    assert download.request_album.await_args.kwargs["origin"] == "youtube_upgrade"
+    youtube.dispatch_album.assert_awaited_once()
+    free_music.request_album.assert_not_awaited()

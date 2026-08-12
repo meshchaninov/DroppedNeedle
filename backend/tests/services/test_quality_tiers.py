@@ -4,6 +4,7 @@ from repositories.protocols.download_client import DownloadSearchResult
 from services.native.quality_tiers import (
     candidate_tier,
     file_tier,
+    held_tier_for_row,
     in_range,
     is_flac_or_mp3,
     should_acquire,
@@ -78,6 +79,15 @@ def test_tier_for_matches_file_tier():
     assert tier_for("mp3", 96) == "low"
     assert tier_for("", None) == "low"
     assert tier_for("alac", 0) == "lossless"
+
+
+def test_youtube_provenance_stays_below_real_mp3_320():
+    assert held_tier_for_row(
+        {"source": "youtube", "file_format": "mp3", "bit_rate": 320}
+    ) == "low"
+    assert held_tier_for_row(
+        {"source": "download", "file_format": "mp3", "bit_rate": 320}
+    ) == "mp3_320"
 
 
 def test_should_acquire_not_in_library():

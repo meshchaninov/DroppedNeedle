@@ -56,6 +56,13 @@ def get_musicbrainz_repository() -> "MusicBrainzRepository":
 
 
 @singleton
+def get_yt_dlp_repository() -> "YtDlpRepository":
+    from repositories.yt_dlp_repository import YtDlpRepository
+
+    return YtDlpRepository()
+
+
+@singleton
 def get_musicbrainz_identification_repository() -> (
     "MusicBrainzIdentificationRepository"
 ):

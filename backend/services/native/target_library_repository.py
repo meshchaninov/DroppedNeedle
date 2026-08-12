@@ -92,21 +92,17 @@ class TargetLibraryRepository:
         return await self.has_album_files(album_id)
 
     async def album_quality_tier(self, album_id: str) -> str | None:
-        from services.native.quality_tiers import tier_for, tier_rank
+        from services.native.quality_tiers import held_tier_for_row, tier_rank
 
         rows = await self._store.get_target_album_tracks(album_id)
-        tiers = [
-            tier_for(row.get("file_format") or "", row.get("bit_rate")) for row in rows
-        ]
+        tiers = [held_tier_for_row(row) for row in rows]
         return min(tiers, key=tier_rank) if tiers else None
 
     async def recording_quality_tier(self, track_id: str) -> str | None:
-        from services.native.quality_tiers import tier_for, tier_rank
+        from services.native.quality_tiers import held_tier_for_row, tier_rank
 
         rows = await self._store.get_target_recording_tracks(track_id)
-        tiers = [
-            tier_for(row.get("file_format") or "", row.get("bit_rate")) for row in rows
-        ]
+        tiers = [held_tier_for_row(row) for row in rows]
         return max(tiers, key=tier_rank) if tiers else None
 
     async def list_cutoff_unmet(self, cutoff: str) -> list[dict[str, Any]]:
@@ -597,6 +593,7 @@ class TargetLibraryRepository:
             bit_depth=row.get("bit_depth"),
             duration_seconds=row.get("duration_seconds"),
             file_size_bytes=int(row.get("file_size_bytes") or 0),
+            source=str(row.get("ingest_source") or "scan"),
         )
 
     @staticmethod

@@ -27,7 +27,9 @@ const basePolicy: DownloadPolicySettings = {
 	default_storage_quota_gb: 0,
 	background_upgrade_scan_enabled: false,
 	background_upgrade_scan_interval_hours: 12,
-	background_upgrade_max_per_run: 3
+	background_upgrade_max_per_run: 3,
+	youtube_provisional_enabled: false,
+	youtube_max_concurrent_downloads: 2
 };
 
 const h = vi.hoisted(() => ({
@@ -115,5 +117,19 @@ describe('SettingsDownloadPolicy upgrade controls', () => {
 		const saved = h.mutateAsync.mock.calls[0][0] as DownloadPolicySettings;
 		expect(saved.upgrade_allowed).toBe(true);
 		expect(saved.quality_cutoff).toBe('lossless');
+	});
+
+	it('keeps replacement safeguards enabled for temporary YouTube copies', async () => {
+		render(SettingsDownloadPolicy);
+
+		await page
+			.getByRole('checkbox', { name: 'Download a temporary YouTube MP3 immediately' })
+			.click();
+		await page.getByRole('button', { name: 'Save' }).click();
+
+		const saved = h.mutateAsync.mock.calls[0][0] as DownloadPolicySettings;
+		expect(saved.youtube_provisional_enabled).toBe(true);
+		expect(saved.upgrade_allowed).toBe(true);
+		expect(saved.background_upgrade_scan_enabled).toBe(true);
 	});
 });

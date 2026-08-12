@@ -19,6 +19,7 @@
 	let qualityCutoff = $state('lossless');
 	let upgradeAllowed = $state(false);
 	let backgroundScan = $state(false);
+	let youtubeProvisional = $state(false);
 	let flacMp3Only = $state(true);
 	let verifyDownloads = $state(true);
 	let autoAccept = $state(0.7);
@@ -38,6 +39,7 @@
 			qualityCutoff = d.quality_cutoff;
 			upgradeAllowed = d.upgrade_allowed;
 			backgroundScan = d.background_upgrade_scan_enabled;
+			youtubeProvisional = d.youtube_provisional_enabled;
 			flacMp3Only = d.flac_mp3_only;
 			verifyDownloads = d.verify_downloads;
 			autoAccept = d.preflight_score_auto_accept;
@@ -62,6 +64,13 @@
 		else if (cutIdx > maxIdx) qualityCutoff = qualityMax;
 	});
 
+	$effect(() => {
+		if (youtubeProvisional) {
+			upgradeAllowed = true;
+			backgroundScan = true;
+		}
+	});
+
 	async function onSave() {
 		const d = policyQuery.data;
 		if (!d) return;
@@ -72,6 +81,7 @@
 			quality_cutoff: qualityCutoff,
 			upgrade_allowed: upgradeAllowed,
 			background_upgrade_scan_enabled: backgroundScan,
+			youtube_provisional_enabled: youtubeProvisional,
 			flac_mp3_only: flacMp3Only,
 			verify_downloads: verifyDownloads,
 			preflight_score_auto_accept: autoAccept,
@@ -110,7 +120,22 @@
 				<input
 					type="checkbox"
 					class="toggle toggle-sm toggle-primary"
+					bind:checked={youtubeProvisional}
+				/>
+				<span class="label-text">Download a temporary YouTube MP3 immediately</span>
+			</label>
+			<p class="text-xs text-base-content/60">
+				Downloads one public video per track with yt-dlp, converts it to MP3 320, and keeps looking
+				for a verified MP3 320 or lossless replacement. Automatic upgrades and the background scan
+				stay enabled while this is on.
+			</p>
+
+			<label class="label cursor-pointer justify-start gap-3 p-0">
+				<input
+					type="checkbox"
+					class="toggle toggle-sm toggle-primary"
 					bind:checked={upgradeAllowed}
+					disabled={youtubeProvisional}
 				/>
 				<span class="label-text">Allow automatic upgrades</span>
 			</label>
@@ -122,7 +147,7 @@
 					type="checkbox"
 					class="toggle toggle-sm toggle-primary"
 					bind:checked={backgroundScan}
-					disabled={!upgradeAllowed}
+					disabled={!upgradeAllowed || youtubeProvisional}
 				/>
 				<span class="label-text">Scan for upgrades in the background</span>
 			</label>

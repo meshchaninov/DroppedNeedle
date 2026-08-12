@@ -79,9 +79,12 @@ class DownloadManifest(AppStruct):
     # for human review instead of silently importing with the gate off (D9) or
     # discarding it. Defaulted - pre-existing on-disk manifests decode unchanged.
     hold_on_wrong_track: bool = False
-    # The owning task's origin ('user' | 'retry' | 'upgrade'). Replace-on-import fires
-    # only for 'upgrade' (D18); legacy manifests decode as 'user' (add-only, unchanged).
+    # The owning task's origin. ``upgrade`` and ``youtube_upgrade`` have strict,
+    # recycle-backed replacement rights; legacy manifests decode as add-only ``user``.
     origin: str = "user"
+    # Provenance persisted on the library row. Existing manifests remain ordinary
+    # downloads; temporary yt-dlp imports explicitly set this to ``youtube``.
+    acquisition_source: str = "download"
 
     def __post_init__(self) -> None:
         # In-flight back-fill: a legacy manifest decodes with handle=None and

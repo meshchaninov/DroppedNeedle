@@ -134,6 +134,21 @@ def test_save_and_read_policy(prefs):
     assert prefs.get_download_policy().usenet_min_release_age_minutes == 45
 
 
+def test_youtube_provisional_policy_keeps_replacement_safeguards_on(prefs):
+    prefs.save_download_policy(
+        DownloadPolicySettings(
+            youtube_provisional_enabled=True,
+            upgrade_allowed=False,
+            background_upgrade_scan_enabled=False,
+        )
+    )
+
+    policy = prefs.get_download_policy()
+    assert policy.youtube_provisional_enabled is True
+    assert policy.upgrade_allowed is True
+    assert policy.background_upgrade_scan_enabled is True
+
+
 def test_source_priority_defaults_soulseek_first(prefs):
     assert prefs.get_source_priority() == ["soulseek", "usenet"]
 

@@ -627,6 +627,47 @@ def get_target_free_music_service() -> "FreeMusicService":
     return _build_free_music_service(get_target_drop_import_service())
 
 
+def _build_youtube_provisional_service(
+    file_processor, album_service, on_import_callback,  # noqa: ANN001
+):
+    from core.config import get_settings
+    from services.native.youtube_provisional_service import YouTubeProvisionalService
+
+    from .repo_providers import get_download_store, get_yt_dlp_repository
+
+    library_settings = get_preferences_service().get_typed_library_settings_raw()
+    return YouTubeProvisionalService(
+        repository=get_yt_dlp_repository(),
+        store=get_download_store(),
+        album_service=album_service,
+        file_processor=file_processor,
+        preferences=get_preferences_service(),
+        event_bus=get_sse_publisher(),
+        staging_path=get_settings().cache_dir / "youtube-staging",
+        naming_template=library_settings.naming_template,
+        request_history=get_request_history_store(),
+        on_import_callback=on_import_callback,
+    )
+
+
+@singleton
+def get_youtube_provisional_service() -> "YouTubeProvisionalService":
+    return _build_youtube_provisional_service(
+        get_file_processor(),
+        get_album_service(),
+        _build_import_invalidation(get_cache(), get_disk_cache(), get_library_db()),
+    )
+
+
+@singleton
+def get_target_youtube_provisional_service() -> "YouTubeProvisionalService":
+    return _build_youtube_provisional_service(
+        get_target_file_processor(),
+        get_target_album_service(),
+        _build_target_import_invalidation(get_cache(), get_disk_cache()),
+    )
+
+
 @singleton
 def get_acquisition_dispatcher() -> "AcquisitionDispatcher":
     from services.acquisition_dispatcher import AcquisitionDispatcher
@@ -638,6 +679,7 @@ def get_acquisition_dispatcher() -> "AcquisitionDispatcher":
         get_download_service=get_download_service,
         get_free_music_service=get_free_music_service,
         preferences_service=get_preferences_service(),
+        get_youtube_provisional_service=get_youtube_provisional_service,
     )
 
 
@@ -650,6 +692,7 @@ def get_target_acquisition_dispatcher() -> "AcquisitionDispatcher":
         get_free_music_service=get_target_free_music_service,
         preferences_service=get_preferences_service(),
         ownership_service=get_target_library_ownership_service(),
+        get_youtube_provisional_service=get_target_youtube_provisional_service,
     )
 
 
@@ -2060,7 +2103,8 @@ def get_download_manifest_codec() -> "ManifestCodec":
 
 
 def _build_download_orchestrator(
-    *, file_processor, library_manager, album_service, on_import_callback
+    *, file_processor, library_manager, album_service, on_import_callback,
+    youtube_provisional_service
 ) -> "DownloadOrchestrator":
     from pathlib import Path
 
@@ -2127,6 +2171,7 @@ def _build_download_orchestrator(
         # stored candidate against the CURRENT quality range even mid-flight (Phase 2).
         get_download_policy=lambda: get_preferences_service().get_download_policy(),
         wanted_store=get_wanted_store(),
+        youtube_provisional_service=youtube_provisional_service,
     )
 
 
@@ -2139,6 +2184,7 @@ def get_download_orchestrator() -> "DownloadOrchestrator":
         on_import_callback=_build_import_invalidation(
             get_cache(), get_disk_cache(), get_library_db()
         ),
+        youtube_provisional_service=get_youtube_provisional_service(),
     )
 
 
@@ -2151,6 +2197,7 @@ def get_target_download_orchestrator() -> "DownloadOrchestrator":
         on_import_callback=_build_target_import_invalidation(
             get_cache(), get_disk_cache()
         ),
+        youtube_provisional_service=get_target_youtube_provisional_service(),
     )
 
 

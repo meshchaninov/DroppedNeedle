@@ -81,6 +81,7 @@ class LibraryTrack(AppStruct):
     bit_depth: int | None = None
     duration_seconds: float | None = None
     file_size_bytes: int = 0
+    source: str = "scan"
     # Quality-upgrade annotations (CollectionManagement Feature B): the file's tier
     # and whether it sits below the active cutoff while upgrades are on. Drives the
     # admin/trusted per-track upgrade affordance on the album page.
@@ -197,10 +198,10 @@ class LibraryManager(LibraryStub):
         """The WORST quality tier across the album's held files (an album is only as good as
         its weakest track - mirrors ``candidate_tier``), or ``None`` when the album isn't in
         the library. Drives the cutoff/upgrade gate (step 8)."""
-        from services.native.quality_tiers import tier_for, tier_rank
+        from services.native.quality_tiers import held_tier_for_row, tier_rank
 
         rows = await self._db.get_library_files_for_album(release_group_mbid)
-        tiers = [tier_for(row.get("file_format") or "", row.get("bit_rate")) for row in rows]
+        tiers = [held_tier_for_row(row) for row in rows]
         return min(tiers, key=tier_rank) if tiers else None
 
     async def list_cutoff_unmet(self, cutoff: str) -> list[dict]:
@@ -219,10 +220,10 @@ class LibraryManager(LibraryStub):
         library. A per-track upgrade must beat the best copy the library already has
         (unlike ``album_quality_tier``, whose worst-track semantics measure album
         completeness, not what a single track's replacement must exceed)."""
-        from services.native.quality_tiers import tier_for, tier_rank
+        from services.native.quality_tiers import held_tier_for_row, tier_rank
 
         rows = await self._db.get_library_files_for_recording(recording_mbid)
-        tiers = [tier_for(row.get("file_format") or "", row.get("bit_rate")) for row in rows]
+        tiers = [held_tier_for_row(row) for row in rows]
         return max(tiers, key=tier_rank) if tiers else None
 
     async def has_track(self, recording_mbid: str) -> bool:
@@ -398,11 +399,12 @@ class LibraryManager(LibraryStub):
         quality_cutoff: str | None = None,
         upgrade_allowed: bool = False,
     ) -> LibraryAlbumStatus:
-        from services.native.quality_tiers import tier_for, tier_rank
+        from services.native.quality_tiers import held_tier_for_row, tier_rank
 
-        tracks = await self.get_tracks(release_group_mbid)
-        for track in tracks:
-            track.current_tier = tier_for(track.file_format or "", track.bit_rate)
+        rows = await self._db.get_library_files_for_album(release_group_mbid)
+        tracks = [self._to_track(row) for row in rows]
+        for row, track in zip(rows, tracks):
+            track.current_tier = held_tier_for_row(row)
             track.below_cutoff = (
                 upgrade_allowed
                 and quality_cutoff is not None
@@ -794,6 +796,7 @@ class LibraryManager(LibraryStub):
             bit_depth=row.get("bit_depth"),
             duration_seconds=row.get("duration_seconds"),
             file_size_bytes=int(row.get("file_size_bytes") or 0),
+            source=str(row.get("source") or "scan"),
         )
 
     @staticmethod

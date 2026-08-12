@@ -23,6 +23,7 @@ if TYPE_CHECKING:
     from services.native.free_music_service import FreeMusicService
     from services.preferences_service import PreferencesService
     from services.native.library_ownership_service import LibraryOwnershipService
+    from services.native.youtube_provisional_service import YouTubeProvisionalService
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +36,7 @@ class AcquisitionDispatcher:
         get_free_music_service: "Callable[[], FreeMusicService]",
         preferences_service: "PreferencesService",
         ownership_service: "LibraryOwnershipService | None" = None,
+        get_youtube_provisional_service: "Callable[[], YouTubeProvisionalService] | None" = None,
     ) -> None:
         # both resolved fresh per call: a settings save rebuilds the DownloadService
         # singleton, and Free Music reads its own settings per request
@@ -42,6 +44,14 @@ class AcquisitionDispatcher:
         self._get_free_music_service = get_free_music_service
         self._prefs = preferences_service
         self._ownership = ownership_service
+        self._get_youtube_provisional = get_youtube_provisional_service
+
+    def _use_youtube_provisional(self, origin: str) -> bool:
+        return bool(
+            origin == "user"
+            and self._get_youtube_provisional is not None
+            and self._prefs.get_download_policy().youtube_provisional_enabled
+        )
 
     def _use_free_music(self) -> bool:
         if self._prefs.is_builtin_download_ready():
@@ -80,7 +90,8 @@ class AcquisitionDispatcher:
                 album_title=album_title,
                 track_count=track_count or 0,
             )
-        return await self._get_download_service().request_album(
+        provisional = self._use_youtube_provisional(origin)
+        result = await self._get_download_service().request_album(
             user_id=user_id,
             release_group_mbid=release_group_mbid,
             artist_name=artist_name,
@@ -92,9 +103,21 @@ class AcquisitionDispatcher:
             track_duration_seconds=track_duration_seconds,
             download_type=download_type,
             artist_mbid=artist_mbid,
-            origin=origin,
+            origin="youtube_upgrade" if provisional else origin,
             release_mbid=release_mbid,
         )
+        if provisional and result != "already_in_library":
+            await self._get_youtube_provisional().dispatch_album(
+                user_id=user_id,
+                release_group_mbid=release_group_mbid,
+                artist_name=artist_name,
+                album_title=album_title,
+                year=year,
+                artist_mbid=artist_mbid,
+                release_mbid=release_mbid,
+                track_count=track_count,
+            )
+        return result
 
     async def request_track(
         self,
@@ -124,7 +147,8 @@ class AcquisitionDispatcher:
                 artist_name=artist_name,
                 track_title=track_title,
             )
-        return await self._get_download_service().request_track(
+        provisional = self._use_youtube_provisional(origin)
+        result = await self._get_download_service().request_track(
             user_id=user_id,
             recording_mbid=recording_mbid,
             artist_name=artist_name,
@@ -133,6 +157,19 @@ class AcquisitionDispatcher:
             duration_seconds=duration_seconds,
             release_group_mbid=release_group_mbid,
             artist_mbid=artist_mbid,
-            origin=origin,
+            origin="youtube_upgrade" if provisional else origin,
             release_mbid=release_mbid,
         )
+        if provisional and result != "already_in_library":
+            await self._get_youtube_provisional().dispatch_track(
+                user_id=user_id,
+                recording_mbid=recording_mbid,
+                artist_name=artist_name,
+                track_title=track_title,
+                album_title=album_title,
+                duration_seconds=duration_seconds,
+                release_group_mbid=release_group_mbid,
+                artist_mbid=artist_mbid,
+                release_mbid=release_mbid,
+            )
+        return result

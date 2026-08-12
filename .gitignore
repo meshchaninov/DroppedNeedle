@@ -48,9 +48,8 @@ ehthumbs.db
 
 # Private working files
 /manage.sh
-/scripts/
+/scripts/local/
 /todos.md
-AGENTS.md
 AGENTS.md.bak
 Docs/
 

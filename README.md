@@ -129,9 +129,11 @@ DroppedNeedle replaces Lidarr with a built-in library and download engine. It sc
 
 The engine talks only to a user-supplied slskd instance over its local HTTP API. It never joins or distributes on the Soulseek/P2P network itself; it issues searches and download requests to slskd and imports the results. The operator supplies, runs, and is responsible for slskd and its shared folders. This is built into the architecture, not just the UI: the engine has no Soulseek protocol code, only an HTTP client for slskd.
 
-DroppedNeedle ships no indexers and no tracker lists. It searches MusicBrainz, an open metadata database that hosts no audio. Every acquisition source it can reach is one you configured yourself: your own slskd instance, or your own Newznab indexers and your own SABnzbd.
+DroppedNeedle ships no indexers and no tracker lists. It searches MusicBrainz, an open metadata database that hosts no audio. The normal acquisition sources are ones you configured yourself: your own slskd instance, or your own Newznab indexers and your own SABnzbd.
 
-Free Music is the one source that ships with the app. It downloads from the Internet Archive, and it offers only items carrying an explicit Creative Commons or public-domain licence, which is shown to you before anything downloads. It needs no account and no API key, it is on by default, and Settings turns it off.
+Free Music ships with the app and downloads from the Internet Archive. It offers only items carrying an explicit Creative Commons or public-domain licence, which is shown to you before anything downloads. It needs no account and no API key, it is on by default, and Settings turns it off.
+
+An additional opt-in setting can create a provisional copy from a public YouTube video with `yt-dlp`. It is disabled by default, uses no account, cookies, or browser profile, and does not bypass access restrictions. You are responsible for enabling it only where downloading and converting the recording is permitted. The resulting MP3 is temporary: DroppedNeedle continues the configured slskd/Usenet search and replaces it through the recycle bin when a genuine MP3 320 or lossless copy arrives.
 
 The engine acquires whatever the operator directs it to acquire. It is built for public-domain and Creative Commons recordings, for releases artists distribute themselves through Bandcamp or the Internet Archive's Live Music Archive, for live-taping collections, and for re-acquiring media you already own. Holding the rights to what you download, and to whatever your download client shares back, is your responsibility as the operator.
 
@@ -171,6 +173,8 @@ The scan is resumable from a progress ledger, cooperatively cancellable, and inc
 5. The orchestrator polls slskd for progress until the transfer completes.
 6. `FileProcessor` imports each file on its own, continuing on failure so one bad file never aborts the rest of the album.
 7. Status resolves to `completed` (all imported), `partial` (some failed), or `failed`.
+
+When **Download a temporary YouTube MP3 immediately** is enabled, a parallel auxiliary task searches public YouTube results for each MusicBrainz track, rejects mismatched durations and alternate versions such as live, cover, remix, or karaoke, and converts the best match to MP3 320 with FFmpeg. This copy is provenance-ranked below a genuine MP3 320 even though its output bitrate is 320 kbps. It therefore never blocks the normal quality task: an accepted MP3 320 or lossless result replaces it atomically, and the old temporary file moves to the configured recycle bin. If the quality source wins the race first, the later YouTube result is skipped rather than replacing it.
 
 ### Preflight scoring
 
@@ -598,7 +602,7 @@ is not a way to override permissions supplied by a download client.
 | Setting | Location |
 |-|-|
 | Library paths, naming template, scan schedule, AcoustID key | Settings > Library |
-| slskd URL and API key, SABnzbd/Usenet URL and API key, Newznab indexers, quality tiers, verification, wanted watcher | Settings > Download Client |
+| slskd URL and API key, SABnzbd/Usenet URL and API key, Newznab indexers, quality tiers, temporary YouTube MP3, verification, wanted watcher | Settings > Download Client |
 | OpenSubsonic and Jellyfin APIs that let apps stream your library, app-passwords, transcoding | Settings > Connect Apps |
 | Jellyfin URL and API key | Settings > Jellyfin |
 | Navidrome URL and credentials | Settings > Navidrome |
@@ -682,6 +686,8 @@ Plex scrobbling is on by default. Turn it off in Settings > Plex or from the lib
 Albums can be linked to a YouTube URL and played inline. This is useful for listening to albums before you've downloaded them. Links can be auto-generated with a YouTube API key or added manually.
 
 A note on reliability: YouTube playback depends on the embedded player, which can be finicky. It works best in a browser where you're signed into YouTube, and VPNs tend to cause issues. Treat it as a convenience for previewing albums rather than a primary playback source.
+
+Separately, **Settings > Download Client > Download policy** has an opt-in provisional-download toggle. That flow uses `yt-dlp` against public videos only, without the YouTube API key or login cookies. It downloads albums one track at a time, transcodes to MP3 320, and retains the copy only until the configured quality source finds a better replacement. Automatic upgrades and the background upgrade scan stay enabled while the toggle is on; replaced files go to the recycle bin and follow its retention setting.
 
 ---
 

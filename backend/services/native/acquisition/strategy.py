@@ -28,6 +28,7 @@ from repositories.protocols.download_client import (
     TaskHandle,
 )
 from services.native.acquisition.errors import OrchestrationError
+from services.native.acquisition_origins import allows_replacement
 from services.native.file_processor import (
     DOWNLOADS_MOUNT_UNAVAILABLE,
     QUARANTINE_REASONS,
@@ -52,7 +53,7 @@ async def _upgrade_held_tier(library, task) -> "str | None":  # noqa: ANN001
     album's WORST tier otherwise. ``None`` for every non-upgrade origin - a retry of a
     partially-imported user download must NOT inherit a floor from the partial files,
     or the retry would reject the very candidates that complete the album."""
-    if library is None or task.origin != "upgrade":
+    if library is None or not allows_replacement(task.origin):
         return None
     if task.download_type == "track" and task.recording_mbid:
         return await library.recording_quality_tier(task.recording_mbid)

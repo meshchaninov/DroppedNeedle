@@ -39,6 +39,7 @@ from repositories.protocols.download_client import (
 )
 from repositories.protocols.indexer import IndexerProtocol
 from services.native.acquisition.errors import OrchestrationError
+from services.native.acquisition_origins import allows_replacement
 from services.native.acquisition.status import DownloadStatus
 from services.native.acquisition.strategy import (
     SoulseekStrategy,
@@ -197,6 +198,7 @@ class DownloadOrchestrator:
         # track-repull). None = not wired (tests) -> re-gate skipped.
         get_download_policy=None,  # Callable[[], DownloadPolicySettings] | None
         wanted_store=None,  # WantedStore | None
+        youtube_provisional_service=None,  # YouTubeProvisionalService | None
     ) -> None:
         self._client = client
         self._naming_template = naming_template
@@ -239,6 +241,7 @@ class DownloadOrchestrator:
         self._on_import = on_import_callback
         self._get_download_policy = get_download_policy
         self._wanted_store = wanted_store
+        self._youtube_provisional = youtube_provisional_service
         self._usenet_scorer = usenet_scorer  # for the Usenet re-gate tier (Phase 2)
         self._active_tasks: dict[str, asyncio.Task] = {}
 
@@ -1219,6 +1222,35 @@ class DownloadOrchestrator:
             DownloadStatus.CANCELLED: "cancelled",
         }
         new_status = mapping.get(status)
+        # The quality task and the temporary yt-dlp task run concurrently. If P2P
+        # exhausts its candidates after the provisional copy has landed, the user's
+        # request is fulfilled (or partially fulfilled), not failed merely because
+        # the better copy has not appeared yet.
+        if getattr(task, "origin", "user") == "youtube_upgrade" and status in (
+            DownloadStatus.FAILED,
+            DownloadStatus.CANCELLED,
+        ):
+            if task.download_type == "track" and task.recording_mbid:
+                if await self._library.has_track(task.recording_mbid):
+                    new_status = "imported"
+            elif task.release_group_mbid:
+                rows = await self._library.get_file_rows_for_album(
+                    task.release_group_mbid
+                )
+                if rows:
+                    coverage = await self._coverage(
+                        task, context="youtube_provisional_terminal"
+                    )
+                    if coverage is not None:
+                        covered, expected, _orphans = coverage
+                        new_status = "imported" if covered >= expected else "incomplete"
+                    else:
+                        expected = self._expected_track_count(task)
+                        new_status = (
+                            "imported"
+                            if expected and len(rows) >= expected
+                            else "incomplete"
+                        )
         if new_status is None:
             return
         if (
@@ -1295,6 +1327,8 @@ class DownloadOrchestrator:
         threshold = 1800.0  # 30 min with no poller at all -> the loop is dead
         registry = TaskRegistry.get_instance()
         for task in active:
+            if task.source == "youtube":
+                continue  # owned by YouTubeProvisionalService, not this poller
             handle = self._active_tasks.get(task.id)
             if handle is not None and not handle.done():
                 continue  # a live loop on this instance owns it
@@ -1332,7 +1366,12 @@ class DownloadOrchestrator:
         """Resume in-progress tasks after a restart (AUD-3): never block startup."""
         registry = TaskRegistry.get_instance()
 
+        if self._youtube_provisional is not None:
+            await self._youtube_provisional.startup_resume()
+
         for orphan in await self._store.list_active_tasks([DownloadStatus.QUEUED]):
+            if orphan.source == "youtube":
+                continue
             # queued = created but never enqueued -> re-dispatch (failing would be
             # spurious; they never started).
             self.dispatch(orphan.id)
@@ -1340,6 +1379,8 @@ class DownloadOrchestrator:
         for task in await self._store.list_active_tasks(
             [DownloadStatus.DOWNLOADING, DownloadStatus.PROCESSING]
         ):
+            if task.source == "youtube":
+                continue
             handle = asyncio.create_task(self._resume_single_task(task.id))
             # Track the live handle so cancel_task can stop the resumed poll loop
             # (mirrors dispatch); without this a resumed download is uncancellable.
@@ -1385,6 +1426,9 @@ class DownloadOrchestrator:
             raise ResourceNotFoundError("Download task not found")
         if user_role != "admin" and task.user_id != user_id:
             raise PermissionDeniedError("Cannot cancel another user's download")
+        if task.source == "youtube" and self._youtube_provisional is not None:
+            await self._youtube_provisional.cancel(task_id, user_id, user_role)
+            return
 
         manifest_path = self._staging / task_id / "manifest.json"
         if manifest_path.exists():
@@ -1420,6 +1464,8 @@ class DownloadOrchestrator:
             raise ResourceNotFoundError("Download task not found")
         if user_role != "admin" and task.user_id != user_id:
             raise PermissionDeniedError("Cannot retry another user's download")
+        if task.source == "youtube" and self._youtube_provisional is not None:
+            return await self._youtube_provisional.retry(task_id, user_id, user_role)
         if task.status not in (
             DownloadStatus.FAILED,
             DownloadStatus.CANCELLED,
@@ -1588,7 +1634,7 @@ class DownloadOrchestrator:
             # An upgrade's retry must stay an upgrade (keeps the origin-aware gate,
             # replace-on-import and cap/quota exemptions working across retries);
             # everything else becomes 'retry' so quota counts ignore it.
-            origin=task.origin if task.origin == "upgrade" else "retry",
+            origin=task.origin if allows_replacement(task.origin) else "retry",
             retry_count=task.retry_count + 1,
         )
         await self._relink_request(task, new_task.id)

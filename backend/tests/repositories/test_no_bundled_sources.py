@@ -4,13 +4,12 @@ The user supplies every *acquisition* source the app can reach - their own slskd
 instance, or their own Newznab indexers and their own SABnzbd. No indexer, tracker,
 or P2P server is preset, bundled, recommended, or curated in-tree.
 
-Free Music (D24) is the one deliberate exception, and it is the exception that
-proves the rule: it ships archive.org preset and enabled by default, and it offers
-only items carrying an explicit Creative Commons or public-domain licence. Bundling
-a lawful source is not the thing this guardrail exists to prevent. Bundling
-specialised means of *finding infringing content* is. The tests below pin both
-halves: no forbidden domain anywhere, and Free Music still filtered to open
-licences against archive.org.
+Free Music (D24) is the deliberate default exception: it ships archive.org preset
+and offers only items with an explicit open licence. The optional YouTube
+provisional lane is disabled by default, searches only public videos without
+cookies, and leaves the rights decision with the operator. Bundling specialised
+means of *finding infringing content* is what this guardrail prevents. The tests
+below pin the forbidden-domain boundary and Free Music's open-licence filter.
 
 This is the load-bearing distinction between an automation tool and an index, and
 the README's "Legality boundary" section asserts it in prose. It held until now
@@ -124,6 +123,13 @@ def test_newznab_indexer_settings_ship_empty():
     assert indexer.name == ""
     assert indexer.url == ""
     assert indexer.api_key == ""
+
+
+def test_youtube_provisional_acquisition_ships_disabled():
+    """Public-video conversion is an explicit operator decision, never a default."""
+    from api.v1.schemas.settings import DownloadPolicySettings
+
+    assert DownloadPolicySettings().youtube_provisional_enabled is False
 
 
 def test_the_one_bundled_source_is_archive_org():

@@ -90,6 +90,7 @@ _LIBRARY_FILE_VALUE_COLUMNS = (
 # agrees with tier_for for every (format, bitrate) band - change BOTH together.
 _TIER_RANK_CASE = """
     CASE
+        WHEN LOWER(COALESCE(source, '')) = 'youtube' THEN 0
         WHEN LOWER(COALESCE(file_format, '')) IN ('flac', 'alac', 'wav', 'ape', 'wv') THEN 4
         WHEN COALESCE(bit_rate, 0) >= 320 THEN 3
         WHEN COALESCE(bit_rate, 0) >= 256 THEN 2
@@ -1864,7 +1865,7 @@ class LibraryDB(PersistenceBase):
                     continue
                 if (
                     protect_downloads_after is not None
-                    and row["source"] == "download"
+                    and row["source"] in ("download", "youtube")
                     and (row["imported_at"] or 0) > protect_downloads_after
                 ):
                     continue

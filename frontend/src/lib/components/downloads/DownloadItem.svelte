@@ -116,6 +116,9 @@
 				{#if task.source === 'usenet'}
 					<span class="badge badge-ghost badge-sm">Usenet</span>
 				{/if}
+				{#if task.source === 'youtube'}
+					<span class="badge badge-secondary badge-sm">YouTube · temporary MP3</span>
+				{/if}
 				{#if task.source === 'usenet' && task.download_type === 'track'}
 					<span
 						class="badge badge-ghost badge-sm"

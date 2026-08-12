@@ -195,6 +195,12 @@ class DownloadPolicySettings(AppStruct):
     background_upgrade_scan_enabled: bool = False
     background_upgrade_scan_interval_hours: int = 12
     background_upgrade_max_per_run: int = 3
+    # Immediately create a temporary MP3 copy from a public YouTube result while the
+    # normal user-authorised sources keep looking for a genuine higher-quality copy.
+    # The temporary file is always provenance-ranked below MP3 320, regardless of the
+    # 320 kbps output container produced by FFmpeg.
+    youtube_provisional_enabled: bool = False
+    youtube_max_concurrent_downloads: int = 2
 
     def __post_init__(self) -> None:
         _validate_range(self.download_stall_timeout_minutes, "download_stall_timeout_minutes", 2, 240)
@@ -216,6 +222,10 @@ class DownloadPolicySettings(AppStruct):
             "background_upgrade_scan_interval_hours", 1, 720,
         )
         _validate_range(self.background_upgrade_max_per_run, "background_upgrade_max_per_run", 1, 100)
+        _validate_range(
+            self.youtube_max_concurrent_downloads,
+            "youtube_max_concurrent_downloads", 1, 4,
+        )
         _rank = {k: r for r, k in enumerate(("low", "mp3_192", "mp3_256", "mp3_320", "lossless"))}
         if self.quality_min not in _rank:
             self.quality_min = "mp3_320"
@@ -231,6 +241,12 @@ class DownloadPolicySettings(AppStruct):
             self.quality_cutoff = self.quality_min
         if _rank[self.quality_cutoff] > _rank[self.quality_max]:
             self.quality_cutoff = self.quality_max
+        # A provisional copy without the replacement machinery would silently become
+        # permanent. Keep the public setting atomic: enabling it also enables the two
+        # existing safety gates needed to keep looking and replace through the recycle bin.
+        if self.youtube_provisional_enabled:
+            self.upgrade_allowed = True
+            self.background_upgrade_scan_enabled = True
 
 
 class WantedWatcherSettings(AppStruct):

@@ -18,26 +18,29 @@ The backend is Python 3.13 with FastAPI. The frontend is SvelteKit with Svelte 5
 
 - Python 3.13+
 - Node.js 22+
+- pnpm 10+
 - Docker (for building the full image)
 
 ### Running Locally
 
-Backend:
+The recommended setup creates local environment files from the checked-in examples and
+installs both dependency sets. It never overwrites an existing environment file.
 
 ```bash
-cd backend
-pip install -r requirements-dev.txt
-cp env.dev.example .env
-uvicorn main:app --reload --port 8688
+make doctor
+make setup
+make dev
 ```
 
-Frontend:
+This starts the backend at `http://localhost:8688` and prints the Vite frontend URL.
+Press Ctrl-C once to stop both processes. To run either side separately:
 
 ```bash
-cd frontend
-cp env.development.example .env.development
-pnpm install
-pnpm run dev
+# Backend
+cd backend && .venv/bin/uvicorn main:app --reload --port 8688
+
+# Frontend (in another terminal)
+cd frontend && pnpm run dev
 ```
 
 ### Running Tests
@@ -46,6 +49,8 @@ pnpm run dev
 make backend-test    # backend suite
 make frontend-test   # frontend suite
 make test            # both
+make check           # fast lint, types, formatting, and server-side frontend tests
+make ci              # full local CI-equivalent gate
 ```
 
 Frontend browser tests use Playwright. Install the browser first:

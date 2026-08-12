@@ -80,6 +80,7 @@ def _manifest(*files: ExpectedFile, origin="user", rg="rg-1", tracks=None) -> Do
 async def _seed_existing(
     manager: LibraryManager, path: Path, *, rg="rg-1", track=1,
     file_format="mp3", bit_rate=192, content=b"OLD-BYTES",
+    source="scan",
 ) -> Path:
     """A held library file at a known tier: physical bytes on disk + a row whose
     file_format/bit_rate drive the tier judgment."""
@@ -94,7 +95,7 @@ async def _seed_existing(
         file_format=file_format, file_size_bytes=len(content),
     )
     await manager.upsert_file(
-        path, tag, info, release_group_mbid=rg, recording_mbid=f"rec-{track}", source="scan"
+        path, tag, info, release_group_mbid=rg, recording_mbid=f"rec-{track}", source=source
     )
     return path
 
@@ -123,6 +124,32 @@ async def test_upgrade_replaces_worse_file_at_different_path(tmp_path: Path):
     # exactly one ACTIVE row at the slot, pointing at the new file
     present = await manager.get_file_at_position("rg-1", 1, 1)
     assert present is not None and present["file_path"] == str(new_path)
+
+
+@pytest.mark.asyncio
+async def test_concurrent_user_request_replaces_provisional_youtube_copy(
+    tmp_path: Path,
+):
+    fp, manager, library, downloads, bin_path = _make(tmp_path)
+    old = await _seed_existing(
+        manager,
+        library / "Radiohead/OK Computer (1997)/temporary.mp3",
+        file_format="mp3",
+        bit_rate=320,
+        source="youtube",
+    )
+    # Provenance, not the transcoded container bitrate, makes this replaceable.
+    shutil.copy(_FLAC, downloads / "01 Airbag.flac")
+
+    result = await fp.process_downloaded(
+        _manifest(
+            ExpectedFile(filename="01 Airbag.flac", size=1), origin="youtube_upgrade"
+        )
+    )
+
+    assert result.failed == []
+    assert not old.exists()
+    assert len(_bin_files(bin_path)) == 1
 
 
 @pytest.mark.asyncio
